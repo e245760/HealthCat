@@ -1,6 +1,7 @@
 import Foundation
+import SwiftData
 
-// MARK: - アイテムモデル
+// MARK: - アイテムモデル（静的定義、SwiftData不要）
 
 struct Item: Codable, Identifiable, Equatable {
     let id: String
@@ -13,7 +14,7 @@ struct Item: Codable, Identifiable, Equatable {
 // MARK: - 入手条件
 
 enum ItemCondition: Codable, Equatable {
-    case steps(min: Int, max: Int)   // 歩数範囲で確定取得
+    case steps(min: Int, max: Int)
 
     func isSatisfied(steps: Int) -> Bool {
         switch self {
@@ -23,29 +24,79 @@ enum ItemCondition: Codable, Equatable {
     }
 }
 
-// MARK: - コレクション記録
+// MARK: - 日別記録（SwiftData永続化）
 
-struct CollectionRecord: Codable {
-    // アイテムIDごとの個数（上限999）
-    var itemCounts: [String: Int] = [:]
-    var lastObtainedItems: [String] = []   // 直近で取得したアイテムのID
+@Model
+final class DailyRecord {
+    // @Attribute(.unique) で同じ日付の重複を防ぐ
+    @Attribute(.unique) var dateKey: String   // "yyyy-MM-dd"
+    var date: Date
+    var steps: Int
+    var sleepHours: Double
+    var floors: Int
+    var obtainedItemId: String?
+    var goalSteps: Int
 
-    static let maxCount = 999
-
-    mutating func add(itemId: String, count: Int = 1) {
-        let current = itemCounts[itemId] ?? 0
-        itemCounts[itemId] = min(current + count, Self.maxCount)
+    init(date: Date, steps: Int, sleepHours: Double, floors: Int,
+         obtainedItemId: String?, goalSteps: Int) {
+        self.date = Calendar.current.startOfDay(for: date)
+        self.dateKey = Self.makeKey(from: date)
+        self.steps = steps
+        self.sleepHours = sleepHours
+        self.floors = floors
+        self.obtainedItemId = obtainedItemId
+        self.goalSteps = goalSteps
     }
+
+    static func makeKey(from date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        return f.string(from: date)
+    }
+
+    var achievementRate: Double {
+        guard goalSteps > 0 else { return 0 }
+        return min(1.0, Double(steps) / Double(goalSteps))
+    }
+
+    var isGoalAchieved: Bool { steps >= goalSteps }
+}
+
+// MARK: - コレクション記録（SwiftData永続化）
+
+@Model
+final class CollectionData {
+    // JSON文字列として [itemId: count] を保持
+    var itemCountsJSON: Data
+    var lastObtainedItemId: String?
+
+    init() {
+        self.itemCountsJSON = (try? JSONEncoder().encode([String: Int]())) ?? Data()
+        self.lastObtainedItemId = nil
+    }
+
+    // MARK: 操作
 
     func count(for itemId: String) -> Int {
-        itemCounts[itemId] ?? 0
+        counts[itemId] ?? 0
     }
 
-    func hasItem(_ id: String) -> Bool {
-        (itemCounts[id] ?? 0) > 0
+    func add(itemId: String, amount: Int = 1) {
+        var c = counts
+        c[itemId] = min((c[itemId] ?? 0) + amount, 999)
+        counts = c
     }
 
-    var totalObtainedKinds: Int {
-        itemCounts.filter { $0.value > 0 }.count
+    func hasItem(_ id: String) -> Bool { count(for: id) > 0 }
+
+    var totalObtainedKinds: Int { counts.filter { $0.value > 0 }.count }
+
+    // MARK: 内部
+
+    private var counts: [String: Int] {
+        get { (try? JSONDecoder().decode([String: Int].self, from: itemCountsJSON)) ?? [:] }
+        set { itemCountsJSON = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
 }

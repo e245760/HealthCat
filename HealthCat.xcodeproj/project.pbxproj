@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		5A79B7022FCADF3C00924734 /* HealthCat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = HealthCat.app; path = "/Users/pasokonkun/Documents/Health/build/Debug-iphoneos/HealthCat.app"; sourceTree = "<absolute>"; };
+		5A79B88A2FCB2E9F00924734 /* HealthCat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HealthCat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -46,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				5A8452742FC85CE90033CA99 /* HealthCat */,
+				5A79B88A2FCB2E9F00924734 /* HealthCat.app */,
 			);
 			sourceTree = "<group>";
 		};
@@ -71,7 +72,7 @@
 			packageProductDependencies = (
 			);
 			productName = HealthCat;
-			productReference = 5A79B7022FCADF3C00924734 /* HealthCat.app */;
+			productReference = 5A79B88A2FCB2E9F00924734 /* HealthCat.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct CatApp: App {
@@ -6,5 +7,6 @@ struct CatApp: App {
         WindowGroup {
             RootView()
         }
+        .modelContainer(for: [DailyRecord.self, CollectionData.self])
     }
 }
