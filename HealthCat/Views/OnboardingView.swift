@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @Binding var isPresented: Bool
-    @ObservedObject var gameState: GameState
+    @Environment(AppCoordinator.self) private var coordinator
 
     @State private var inputText: String = "8000"
     @FocusState private var isFocused: Bool
@@ -69,8 +68,10 @@ struct OnboardingView: View {
 
             Button {
                 guard let goal = parsedGoal else { return }
-                gameState.goalSteps = goal
-                isPresented = false
+                coordinator.goalSteps = goal
+                coordinator.completeOnboarding()
+                // onboarding 完了後にセットアップ開始
+                Task { await coordinator.startSetupIfNeeded() }
             } label: {
                 Text("はじめる")
                     .font(.headline)
@@ -85,6 +86,6 @@ struct OnboardingView: View {
             .padding(.bottom, 48)
         }
         .onTapGesture { isFocused = false }
-        .onAppear { isFocused = true }
+        .onAppear     { isFocused = true  }
     }
 }

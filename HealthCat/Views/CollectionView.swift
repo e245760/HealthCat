@@ -1,29 +1,25 @@
 import SwiftUI
 
 struct CollectionView: View {
-    @ObservedObject var gameState: GameState
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
+    @Environment(AppCoordinator.self) private var coordinator
+
+    private let columns = Array(repeating: GridItem(.flexible()), count: 4)
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+
                     // 今日拾ってきたもの
-                    if !gameState.todaysItems.isEmpty {
+                    if !coordinator.todaysItems.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("今日ひろってきたもの")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption).foregroundStyle(.secondary)
                                 .padding(.horizontal)
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
-                                    ForEach(gameState.todaysItems) { item in
+                                    ForEach(coordinator.todaysItems) { item in
                                         TodaysItemCard(item: item)
                                     }
                                 }
@@ -36,18 +32,16 @@ struct CollectionView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("図鑑")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption).foregroundStyle(.secondary)
                             Spacer()
-                            Text("\(gameState.collectedCount) / \(gameState.totalCount)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text("\(coordinator.collectedCount) / \(coordinator.totalItemCount)")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.horizontal)
 
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(ItemDatabase.shared.allItems) { item in
-                                let count = gameState.collection.count(for: item.id)
+                                let count = coordinator.repository?.collection.count(for: item.id) ?? 0
                                 CollectionCell(item: item, count: count)
                             }
                         }
@@ -58,7 +52,6 @@ struct CollectionView: View {
             }
             .navigationTitle("コレクション")
             .navigationBarTitleDisplayMode(.inline)
-
         }
     }
 }
@@ -70,16 +63,9 @@ struct TodaysItemCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(item.emoji)
-                .font(.system(size: 36))
-            Text(item.name)
-                .font(.caption)
-                .fontWeight(.medium)
-                .multilineTextAlignment(.center)
-            Text(item.description)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            Text(item.emoji).font(.system(size: 36))
+            Text(item.name).font(.caption).fontWeight(.medium).multilineTextAlignment(.center)
+            Text(item.description).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(width: 100)
         .padding(12)
@@ -107,35 +93,27 @@ struct CollectionCell: View {
                         .font(.system(size: 28))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    // 個数バッジ
                     if count > 1 {
                         Text("×\(count)")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4).padding(.vertical, 2)
                             .background(Color.accentColor)
                             .clipShape(Capsule())
                             .padding(4)
                     }
                 } else {
-                    Text("？")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.tertiary)
+                    Text("？").font(.system(size: 22)).foregroundStyle(.tertiary)
                 }
             }
             .frame(height: 64)
 
             if obtained {
                 Text(item.name)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .font(.system(size: 10)).foregroundStyle(.primary)
+                    .multilineTextAlignment(.center).lineLimit(2)
             } else {
-                Text("???")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                Text("???").font(.system(size: 10)).foregroundStyle(.tertiary)
             }
         }
     }

@@ -1,28 +1,26 @@
 import SwiftUI
 
-struct CatView: View {
-    @ObservedObject var gameState: GameState
-    @ObservedObject var healthKit: HealthKitManager
+// MARK: - CatView
 
-    @State private var showMonologue = false
-    @State private var monologueText = ""
+struct CatView: View {
+    @Environment(AppCoordinator.self) private var coordinator
+
+    // 表示専用の状態（ビジネスロジックなし）
+    @State private var showMonologue  = false
+    @State private var monologueText  = ""
     @State private var showDebugAlert = false
-    @State private var showNewItems = false
+    @State private var showNewItems   = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-
-                    // ネコウィンドウ（画面の1/3）
                     catWindow
                         .padding(.horizontal)
 
-                    // 昨日のデータカード
                     yesterdayStatsSection
                         .padding(.horizontal)
 
-                    // 拾ってきたもの
                     todaysItemsSection
                         .padding(.horizontal)
 
@@ -41,15 +39,14 @@ struct CatView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .sheet(isPresented: $showNewItems) {
-            NewItemsView(items: gameState.todaysItems)
+            NewItemsView(items: coordinator.todaysItems)
         }
         .alert("デバッグ: 結果を追加", isPresented: $showDebugAlert) {
-            Button("1000歩") { gameState.debugApplyResult(steps: 1000) }
-            Button("5000歩") { gameState.debugApplyResult(steps: 5000) }
-            Button("10000歩") { gameState.debugApplyResult(steps: 10000) }
+            Button("1000歩")  { coordinator.debugApplyResult(steps: 1000) }
+            Button("5000歩")  { coordinator.debugApplyResult(steps: 5000) }
+            Button("10000歩") { coordinator.debugApplyResult(steps: 10000) }
             Button("キャンセル", role: .cancel) {}
         }
-.onAppear {}
     }
 
     // MARK: - ネコウィンドウ
@@ -57,11 +54,9 @@ struct CatView: View {
     private var catWindow: some View {
         GeometryReader { geo in
             ZStack {
-                // 3Dネコ
                 CatSceneView()
                     .onTapGesture { triggerMonologue() }
 
-                // 独り言
                 if showMonologue {
                     VStack {
                         Spacer()
@@ -78,13 +73,12 @@ struct CatView: View {
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                 }
 
-                // コレクション進捗（右上）
                 VStack {
                     HStack {
                         Spacer()
                         HStack(spacing: 4) {
                             Text("🎒")
-                            Text("\(gameState.collectedCount)/\(gameState.totalCount)")
+                            Text("\(coordinator.collectedCount)/\(coordinator.totalItemCount)")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                         }
@@ -97,7 +91,7 @@ struct CatView: View {
                     Spacer()
                 }
             }
-            .frame(height: geo.size.width * 0.85) // 横幅の85%を高さに（正方形より少し縦長）
+            .frame(height: geo.size.width * 0.85)
             .background(
                 TimeBasedGradient()
                     .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -117,13 +111,12 @@ struct CatView: View {
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)
 
-            // 達成率バー
             achievementCard
 
             HStack(spacing: 10) {
-                statCard(emoji: "👣", label: "歩数", value: yesterdayStepsText, unit: "")
-                statCard(emoji: "🌙", label: "ねむり", value: yesterdaySleepText, unit: "")
-                statCard(emoji: "🪜", label: "かいだん", value: yesterdayFloorsText, unit: "")
+                statCard(emoji: "👣", label: "歩数",    value: yesterdayStepsText)
+                statCard(emoji: "🌙", label: "ねむり",  value: yesterdaySleepText)
+                statCard(emoji: "🪜", label: "かいだん", value: yesterdayFloorsText)
             }
         }
     }
@@ -135,16 +128,14 @@ struct CatView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
-                Text("\(gameState.achievementPercent)%")
+                Text("\(coordinator.achievementPercent)%")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(achievementColor)
-                Text("/ \(gameState.goalSteps)歩")
+                Text("/ \(coordinator.goalSteps)歩")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            // プログレスバー
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 6)
@@ -152,8 +143,9 @@ struct CatView: View {
                         .frame(height: 10)
                     RoundedRectangle(cornerRadius: 6)
                         .fill(achievementColor)
-                        .frame(width: geo.size.width * CGFloat(gameState.achievementRate), height: 10)
-                        .animation(.easeOut(duration: 0.8), value: gameState.achievementRate)
+                        .frame(width: geo.size.width * CGFloat(coordinator.achievementRate),
+                               height: 10)
+                        .animation(.easeOut(duration: 0.8), value: coordinator.achievementRate)
                 }
             }
             .frame(height: 10)
@@ -164,25 +156,19 @@ struct CatView: View {
     }
 
     private var achievementColor: Color {
-        switch gameState.achievementRate {
+        switch coordinator.achievementRate {
         case 1.0...: return .green
         case 0.7...: return .blue
         case 0.4...: return .orange
-        default: return .red
+        default:     return .red
         }
     }
 
-    private func statCard(emoji: String, label: String, value: String, unit: String) -> some View {
+    private func statCard(emoji: String, label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(emoji)
-                .font(.title2)
-            Text(value)
-                .font(.title3)
-                .fontWeight(.bold)
-                .monospacedDigit()
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(emoji).font(.title2)
+            Text(value).font(.title3).fontWeight(.bold).monospacedDigit()
+            Text(label).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -199,9 +185,11 @@ struct CatView: View {
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)
 
-            if gameState.todaysItems.isEmpty {
+            if coordinator.todaysItems.isEmpty {
                 HStack {
-                    Text(gameState.hasAlreadyFetchedToday ? "今日は何も拾ってこなかった" : "データを取得中…")
+                    Text(coordinator.hasAlreadyFetchedToday
+                         ? "今日は何も拾ってこなかった"
+                         : "データを取得中…")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -211,29 +199,22 @@ struct CatView: View {
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
-                Button {
-                    showNewItems = true
-                } label: {
+                Button { showNewItems = true } label: {
                     HStack(spacing: 12) {
                         HStack(spacing: 4) {
-                            ForEach(gameState.todaysItems.prefix(3)) { item in
-                                Text(item.emoji)
-                                    .font(.title2)
+                            ForEach(coordinator.todaysItems.prefix(3)) { item in
+                                Text(item.emoji).font(.title2)
                             }
                         }
                         VStack(alignment: .leading, spacing: 2) {
                             Text("ひろってきたものがある")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.primary)
-                            Text("\(gameState.todaysItems.count)個")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.subheadline).fontWeight(.medium).foregroundStyle(.primary)
+                            Text("\(coordinator.todaysItems.count)個")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(16)
                     .background(Color(.secondarySystemGroupedBackground))
@@ -246,45 +227,34 @@ struct CatView: View {
     // MARK: - 表示用テキスト
 
     private var yesterdayStepsText: String {
-        guard let r = gameState.yesterdayRecord else { return "---" }
+        guard let r = coordinator.repository?.yesterdayRecord else { return "---" }
         return r.steps >= 1000
             ? String(format: "%.1fk", Double(r.steps) / 1000)
             : "\(r.steps)"
     }
 
     private var yesterdaySleepText: String {
-        guard let r = gameState.yesterdayRecord else { return "---" }
+        guard let r = coordinator.repository?.yesterdayRecord else { return "---" }
         return r.sleepHours > 0 ? String(format: "%.1fh", r.sleepHours) : "---"
     }
 
     private var yesterdayFloorsText: String {
-        guard let r = gameState.yesterdayRecord else { return "---" }
+        guard let r = coordinator.repository?.yesterdayRecord else { return "---" }
         return r.floors > 0 ? "\(r.floors)階" : "---"
     }
 
-    // MARK: - 独り言トリガー
+    // MARK: - 独り言
 
     private func triggerMonologue() {
         guard !showMonologue else { return }
-
-        if let item = gameState.todaysItems.randomElement() {
-            monologueText = item.description
-        } else {
-            let defaults = ["…", "ふーん", "まあね", "そう", "知ってた", "…べつに"]
-            monologueText = defaults.randomElement()!
-        }
-
+        monologueText = coordinator.todaysItems.randomElement()?.description
+            ?? ["…", "ふーん", "まあね", "そう", "知ってた", "…べつに"].randomElement()!
         withAnimation(.spring(response: 0.3)) { showMonologue = true }
-
         Task {
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
-            await MainActor.run {
-                withAnimation(.easeOut(duration: 0.3)) { showMonologue = false }
-            }
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation(.easeOut(duration: 0.3)) { showMonologue = false }
         }
     }
-
-
 }
 
 // MARK: - 今日のアイテム発表画面
@@ -297,21 +267,16 @@ struct NewItemsView: View {
         NavigationStack {
             VStack(spacing: 32) {
                 Text("ひろってきた")
-                    .font(.title2)
-                    .fontWeight(.medium)
+                    .font(.title2).fontWeight(.medium)
                     .padding(.top, 32)
 
                 HStack(spacing: 16) {
-                    ForEach(items) { item in
-                        TodaysItemCard(item: item)
-                    }
+                    ForEach(items) { item in TodaysItemCard(item: item) }
                 }
 
                 Spacer()
 
-                Button {
-                    dismiss()
-                } label: {
+                Button { dismiss() } label: {
                     Text("みた")
                         .frame(maxWidth: .infinity)
                         .padding()
