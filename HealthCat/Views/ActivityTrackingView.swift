@@ -17,25 +17,24 @@ struct ActivityTrackingView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
-                } else {
-                    VStack(spacing: 20) {
-                        weeklySummaryCard.padding(.horizontal)
-                        stepsChartCard.padding(.horizontal)
-                        calendarSection.padding(.horizontal)
-                    }
-                    .padding(.vertical, 16)
+        // NavigationStack は親の RecordsHubView が持つため、ここでは不要
+        ScrollView {
+            if isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+            } else {
+                VStack(spacing: 20) {
+                    weeklySummaryCard.padding(.horizontal)
+                    stepsChartCard.padding(.horizontal)
+                    calendarSection.padding(.horizontal)
                 }
+                .padding(.vertical, 16)
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("きろく")
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("歩数のきろく")
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             activities = await coordinator.healthKit.fetchActivityHistory(days: 60)
             isLoading = false

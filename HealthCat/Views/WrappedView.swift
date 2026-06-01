@@ -89,10 +89,22 @@ struct WrappedView: View {
     @Environment(AppCoordinator.self) private var coordinator
     let year: Int
 
-    @State private var currentSlide = 0
+    @State private var currentSlide  = 0
+    @State private var goingForward  = true   // スライドアニメーションの方向管理
     @State private var data: WrappedData? = nil
 
     private let totalSlides = 6
+
+    /// 進行方向に合わせたトランジション
+    private var slideTransition: AnyTransition {
+        goingForward
+            ? .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal:   .move(edge: .leading).combined(with: .opacity))
+            : .asymmetric(
+                insertion: .move(edge: .leading).combined(with: .opacity),
+                removal:   .move(edge: .trailing).combined(with: .opacity))
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -111,6 +123,7 @@ struct WrappedView: View {
         }
         .navigationTitle("\(year)年のふりかえり")
         .navigationBarTitleDisplayMode(.inline)
+        .background { NavigationBackGestureDisabler() }  // バックスワイプを無効化
         .task {
             // repository アクセスはメインアクターで行う
             // 365件程度のデータなら同期計算で十分高速
@@ -135,12 +148,33 @@ struct WrappedView: View {
                 }
             }
             .id(currentSlide)
-            .transition(.asymmetric(
-                insertion: .move(edge: .trailing).combined(with: .opacity),
-                removal:   .move(edge: .leading).combined(with: .opacity)
-            ))
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: currentSlide)
+            .transition(slideTransition)
+            // .animation(value:) は使わず withAnimation に一本化
             .padding(.bottom, 100)
+            // 水平スワイプでスライド切り替え
+            // simultaneousGesture にすることで内部の ScrollView（縦）と競合しない
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 30)
+                    .onEnded { value in
+                        let h = value.translation.width
+                        let v = value.translation.height
+                        // 横方向の移動が支配的なときだけ反応
+                        guard abs(h) > abs(v) else { return }
+                        if h < -50 {
+                            // goingForward を withAnimation の外で先に確定させる
+                            // → SwiftUI がトランジション方向を正しく読み取れる
+                            goingForward = true
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                currentSlide = min(totalSlides - 1, currentSlide + 1)
+                            }
+                        } else if h > 50 {
+                            goingForward = false
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                currentSlide = max(0, currentSlide - 1)
+                            }
+                        }
+                    }
+            )
 
             navigationBar
         }
@@ -311,7 +345,10 @@ struct WrappedView: View {
             Divider()
             HStack {
                 Button {
-                    withAnimation { currentSlide = max(0, currentSlide - 1) }
+                    goingForward = false
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                        currentSlide = max(0, currentSlide - 1)
+                    }
                 } label: {
                     Text("もどる")
                         .font(.subheadline)
@@ -336,7 +373,12 @@ struct WrappedView: View {
                 Spacer()
 
                 if currentSlide < totalSlides - 1 {
-                    Button { withAnimation { currentSlide += 1 } } label: {
+                    Button {
+                        goingForward = true
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            currentSlide += 1
+                        }
+                    } label: {
                         Text("つぎへ")
                             .font(.subheadline).fontWeight(.medium)
                             .foregroundStyle(Color(.systemBackground))
@@ -345,7 +387,12 @@ struct WrappedView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 } else {
-                    Button { withAnimation { currentSlide = 0 } } label: {
+                    Button {
+                        goingForward = false
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            currentSlide = 0
+                        }
+                    } label: {
                         Text("さいしょへ")
                             .font(.subheadline).fontWeight(.medium)
                             .foregroundStyle(Color(.systemBackground))
@@ -537,5 +584,26 @@ private extension Date {
 private extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+// MARK: - バックスワイプ無効化
+// WrappedView 表示中だけ iOS のシステムバックスワイプを止める。
+// viewDidAppear で無効化 → viewWillDisappear で復元するので
+// 他の画面には一切影響しない。
+
+private struct NavigationBackGestureDisabler: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func updateUIViewController(_ vc: Controller, context: Context) {}
+
+    final class Controller: UIViewController {
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            navigationController?.interactivePopGestureRecognizer?.isEnabled = false
+        }
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            navigationController?.interactivePopGestureRecognizer?.isEnabled = true
+        }
     }
 }

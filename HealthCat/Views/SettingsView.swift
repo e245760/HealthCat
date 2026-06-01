@@ -3,13 +3,12 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppCoordinator.self) private var coordinator
 
-    @State private var inputText:     String = ""
+    @State private var inputText:      String = ""
     @FocusState private var isFocused: Bool
 
-    // 再取得 UI 状態（SettingsView 固有のローカル状態）
-    @State private var isRefetching:  Bool           = false
-    @State private var refetchMessage: String        = ""
-    @State private var refetchResult:  RefetchResult? = nil
+    @State private var isRefetching:   Bool            = false
+    @State private var refetchMessage: String          = ""
+    @State private var refetchResult:  RefetchResult?  = nil
 
     enum RefetchResult { case success(Int), failure }
 
@@ -18,53 +17,26 @@ struct SettingsView: View {
         return value
     }
 
-    private var availableYears: [Int] {
-        let years = Set((coordinator.repository?.history ?? []).map {
-            Calendar.current.component(.year, from: $0.date)
-        })
-        return years.sorted().reversed()
-    }
-
     var body: some View {
         NavigationStack {
-            List {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
 
-                // ふりかえり
-                Section {
-                    if availableYears.isEmpty {
-                        HStack(spacing: 10) {
-                            Image(systemName: "sparkles").foregroundStyle(.secondary)
-                            Text("記録が溜まるとふりかえりが見られます")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    } else {
-                        ForEach(availableYears, id: \.self) { year in
-                            NavigationLink {
-                                WrappedView(year: year)
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "sparkles")
-                                    Text("\(year)年のふりかえり")
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("ふりかえり")
-                } footer: {
-                    Text("1年間の歩数・睡眠・コレクションをまとめて振り返ります")
-                }
+                    // MARK: 目標歩数
 
-                // 目標歩数
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
+                    sectionHeader("目標歩数")
+
+                    card {
+                        // 現在値
                         HStack {
                             Text("現在の目標").foregroundStyle(.secondary)
                             Spacer()
                             Text("\(coordinator.goalSteps)歩").fontWeight(.semibold)
                         }
 
+                        Divider()
+
+                        // 入力
                         HStack(alignment: .lastTextBaseline, spacing: 8) {
                             TextField("\(coordinator.goalSteps)", text: $inputText)
                                 .keyboardType(.numberPad)
@@ -91,87 +63,131 @@ struct SettingsView: View {
                                 .font(.caption).foregroundStyle(.red)
                         }
                     }
-                    .padding(.vertical, 8)
-                } header: {
-                    Text("目標歩数")
-                } footer: {
-                    Text("新しい歩数を入力して「変更」を押してください")
-                }
 
-                // 過去データの再取得
-                Section {
-                    refetchRow
-                } header: {
-                    Text("データ")
-                } footer: {
-                    Text("HealthKitから過去365日分のデータを再取得します。データが消えた場合などにお使いください。")
-                }
+                    sectionFooter("新しい歩数を入力して「変更」を押してください")
 
-                // アプリ情報
-                Section(header: Text("アプリ情報")) {
-                    HStack {
-                        Text("バージョン")
-                        Spacer()
-                        Text("1.0.0").foregroundStyle(.secondary)
+                    // MARK: データ再取得
+
+                    sectionHeader("データ")
+
+                    card {
+                        if isRefetching {
+                            HStack(spacing: 12) {
+                                ProgressView().controlSize(.small)
+                                Text(refetchMessage)
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                        } else {
+                            // 再取得ボタン
+                            Button {
+                                Task { await startRefetch() }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.clockwise.icloud")
+                                        .foregroundStyle(Color.accentColor)
+                                    Text("過去365日のデータを再取得")
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            // 結果表示
+                            if let result = refetchResult {
+                                Divider()
+                                HStack(spacing: 8) {
+                                    switch result {
+                                    case .success(let days):
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                        Text("\(days)日分を取得しました")
+                                            .font(.subheadline).foregroundStyle(.secondary)
+                                    case .failure:
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.red)
+                                        Text("取得に失敗しました")
+                                            .font(.subheadline).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
                     }
-                }
 
-                #if DEBUG
-                Section(header: Text("デバッグ")) {
-                    Button(role: .destructive) {
-                        coordinator.resetAll()
-                    } label: {
-                        Text("データをリセット")
+                    sectionFooter("HealthKitから過去365日分のデータを再取得します。データが消えた場合などにお使いください。")
+
+                    // MARK: アプリ情報
+
+                    sectionHeader("アプリ情報")
+
+                    card {
+                        HStack {
+                            Text("バージョン")
+                            Spacer()
+                            Text("1.0.0").foregroundStyle(.secondary)
+                        }
                     }
+
+                    // MARK: デバッグ
+
+                    #if DEBUG
+                    sectionHeader("デバッグ")
+                    card {
+                        Button(role: .destructive) {
+                            coordinator.resetAll()
+                        } label: {
+                            Text("データをリセット")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    #endif
+
+                    Spacer(minLength: 32)
                 }
-                #endif
+                .padding(.horizontal)
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.inline)
             .onTapGesture { isFocused = false }
         }
     }
 
-    // MARK: - 再取得行
+    // MARK: - レイアウトヘルパー
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 4)
+            .padding(.top, 24)
+            .padding(.bottom, 6)
+    }
+
+    private func sectionFooter(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 4)
+            .padding(.top, 6)
+    }
 
     @ViewBuilder
-    private var refetchRow: some View {
-        if isRefetching {
-            HStack(spacing: 12) {
-                ProgressView().controlSize(.small)
-                Text(refetchMessage).font(.subheadline).foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 4)
-        } else {
-            Button {
-                Task { await startRefetch() }
-            } label: {
-                HStack {
-                    Image(systemName: "arrow.clockwise.icloud")
-                    Text("過去365日のデータを再取得")
-                }
-            }
-
-            if let result = refetchResult {
-                HStack(spacing: 8) {
-                    switch result {
-                    case .success(let days):
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        Text("\(days)日分を取得しました")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    case .failure:
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                        Text("取得に失敗しました")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 2)
-            }
+    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content()
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - 再取得処理
-    // coordinator のグローバルオーバーレイを使わず、
-    // SettingsView 内のローカル UI で進捗を表示する
 
     private func startRefetch() async {
         isRefetching = true
@@ -207,7 +223,6 @@ struct SettingsView: View {
         isRefetching  = false
         refetchResult = .success(dailySteps.count)
 
-        // 3秒後に結果表示を消す
         try? await Task.sleep(for: .seconds(3))
         withAnimation { refetchResult = nil }
     }

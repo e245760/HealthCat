@@ -14,7 +14,7 @@ struct RootView: View {
                         Text("ネコ")
                     }
 
-                ActivityTrackingView()
+                RecordsHubView()
                     .tabItem {
                         Image(systemName: "chart.bar.fill")
                         Text("きろく")
